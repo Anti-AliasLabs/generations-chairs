@@ -9,7 +9,7 @@
  Written by Becky Stewart, 2015
 
  Adapted from DataStream.ino by Bare Conductive- prints capacitive sense data
- from MPR121 to Serial1 port
+ from MPR121 to Serial1 port; and Touch_MP3 by Bare Conductive
 
  Based on code by Jim Lindblom and plenty of inspiration from the Freescale
  Semiconductor datasheets and application notes.
@@ -25,6 +25,22 @@
 
 #include <MPR121.h>
 #include <Wire.h>
+
+// mp3 includes
+#include <SPI.h>
+#include <SdFat.h>
+#include <SdFatUtil.h>
+#include <SFEMP3Shield.h>
+
+// mp3 variables
+SFEMP3Shield MP3player;
+byte result;
+int lastPlayed = 0;
+int seatThreshold = 20;
+
+
+// sd card instantiation
+SdFat sd;
 
 void setup() {
   Serial1.begin(baudRate);
@@ -62,6 +78,18 @@ void setup() {
   MPR121.setRegister(NCLR, 0x00); //noise count limit
   MPR121.setRegister(NHDF, 0x01); //noise half delta
   MPR121.setRegister(FDLF, 0x3F); //filter delay limit
+
+  // set up audio playback
+  if (!sd.begin(SD_SEL, SPI_HALF_SPEED)) sd.initErrorHalt();
+
+  result = MP3player.begin();
+  MP3player.setVolume(10, 10);
+
+  if (result != 0) {
+    Serial1.print("Error code: ");
+    Serial1.print(result);
+    Serial1.println(" when trying to start MP3 player");
+  }
 }
 
 void loop() {
@@ -98,5 +126,21 @@ void readRawInputs() {
     if(i<12) Serial1.print(" ");
   }
   Serial1.println();*/
+
+  // if above seated threshold
+  if (MPR121.getBaselineData(i) - MPR121.getFilteredData(i) > seatThreshold) {
+    if (MP3player.isPlaying()) {
+
+      // if we're already playing the requested track, do nothing
+
+    } else {
+      // if we're playing nothing, play the requested track
+      // and update lastplayed
+      MP3player.playTrack(0);
+    }
+  } else {
+    // if not within threshold, stop any playing
+    MP3player.stopTrack();
+  }
 
 }

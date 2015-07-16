@@ -16,7 +16,7 @@ int updateArray(String s) {
   println(splitString[1]);
   try {
     array = Integer.parseInt(s.trim());
-    println(array);
+    //println(array);
   } 
   catch (NumberFormatException e) {
     array = -128;
