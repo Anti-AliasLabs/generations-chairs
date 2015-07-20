@@ -38,14 +38,14 @@ byte result;
 int lastPlayed = 0;
 
 // sitting and touch variables
-int seatThreshold = 20;
-int sizeLookBack = 5;
-int lastValues[5] = {0, 0, 0, 0, 0};
+int seatThreshold = 30;
+int touchThreshold = 5;
+int sizeLookBack = 30;
+int lastValues[30];
 
 boolean seatTriggered = false;
 boolean touchTriggered = false;
 int seatValue = 0;
-int prevTempSeatValue = 0;
 
 
 // sd card instantiation
@@ -100,6 +100,11 @@ void setup() {
     Serial1.print(result);
     Serial1.println(" when trying to start MP3 player");
   }
+
+  // initialise array
+  for (int i = 0; i < sizeLookBack; i++ ) {
+    lastValues[i] = 0;
+  }
 }
 
 void loop() {
@@ -142,6 +147,7 @@ void readRawInputs() {
 
   // go through current array of values
   boolean tempSeatTriggered = true;
+  boolean tempTouchTriggered = true;
   int tempSum = 0;
 
   for (int i = 0; i < sizeLookBack; i++) {
@@ -149,40 +155,55 @@ void readRawInputs() {
     if ( lastValues[i] < seatThreshold ) {
       tempSeatTriggered = false;
     }
+
     tempSum = tempSum + lastValues[i]; // running total
   }
   int avgValue = tempSum / sizeLookBack;
 
   // calculate the standard deviation
-  int stanDev[5] = {0, 0, 0, 0, 0};
+  int stanDev[sizeLookBack];
+  // initialise array
+  for (int i = 0; i < sizeLookBack; i++ ) {
+    stanDev[i] = 0;
+  }
+
   boolean steadyStan = true;
   for ( int i = 0; i < sizeLookBack; i++ ) {
     stanDev[i] = avgValue - lastValues[i];
     stanDev[i] = stanDev[i] * stanDev[i];
-    if ( stanDev[i] > 1 ) { // adjust this number to change sensitivity
+    if ( stanDev[i] > 2 ) { // adjust this number to change sensitivity
       steadyStan = false;
     }
 
-    Serial.print("stan dev: ");
-    Serial.println(stanDev[i]);
+    //Serial.print("stan dev: ");
+    //Serial.println(stanDev[i]);
   }
-  Serial.println("-----");
+  //Serial.println("-----");
 
   // if above the seat threshold
   // and if standard deviation is 0
-  if ( tempSeatTriggered && steadyStan) {
+  if ( tempSeatTriggered && steadyStan && !seatTriggered) {
     // set seat sound to trigger
     seatTriggered = true;
     // store the current value as the seat value
     seatValue = avgValue;
-    Serial.print("seat value: ");
-    Serial.println(seatValue);
-    Serial.println("================");
-  } else {
+  } if ( !tempSeatTriggered) {
     seatTriggered = false;
   }
+  Serial.print("avg value: ");
+  Serial.println(avgValue);
+  Serial.print("seat value: ");
+  Serial.println(seatValue);
 
 
+  // if seat sound is triggered and now also above touch threshold
+  // and now no longer a steady state, trigger touch sound
+  if ( seatTriggered && avgValue > (seatValue + touchThreshold) ) {
+    Serial.println("TOUCHING TOUCHING TOUCHING");
+  }
+
+  Serial.println("================");
+  
   if (seatTriggered) {
     if (MP3player.isPlaying()) {
       Serial1.print("STATUS: SEATED ");
