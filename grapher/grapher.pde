@@ -141,6 +141,8 @@ void serialEvent(Serial p) {
         diffs = updateArray( splitString[1]);
         updateGraphs(); // update graphs when we get a DIFF line
                         // as this is the last of our dataset
+      } else if(splitString[0].equals("STATUS")){
+        print(splitString[1]);
       }
     }
   }

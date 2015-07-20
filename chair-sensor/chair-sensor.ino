@@ -36,7 +36,16 @@
 SFEMP3Shield MP3player;
 byte result;
 int lastPlayed = 0;
+
+// sitting and touch variables
 int seatThreshold = 20;
+int sizeLookBack = 5;
+int lastValues[5] = {0, 0, 0, 0, 0};
+
+boolean seatTriggered = false;
+boolean touchTriggered = false;
+int seatValue = 0;
+int prevTempSeatValue = 0;
 
 
 // sd card instantiation
@@ -44,6 +53,7 @@ SdFat sd;
 
 void setup() {
   Serial1.begin(baudRate);
+  Serial.begin(baudRate);
 
   // 0x5C is the MPR121 I2C address on the Bare Touch Board
   if (!MPR121.begin(0x5C)) {
@@ -127,10 +137,56 @@ void readRawInputs() {
   }
   Serial1.println();*/
 
-  // if above seated threshold
-  if (MPR121.getBaselineData(i) - MPR121.getFilteredData(i) > seatThreshold) {
-    if (MP3player.isPlaying()) {
+  // update array of past values with current reading
+  updateLastValues(MPR121.getBaselineData(i) - MPR121.getFilteredData(i));
 
+  // go through current array of values
+  boolean tempSeatTriggered = true;
+  int tempSum = 0;
+
+  for (int i = 0; i < sizeLookBack; i++) {
+    // if any of the values are below the threshold, don't trigger sitting
+    if ( lastValues[i] < seatThreshold ) {
+      tempSeatTriggered = false;
+    }
+    tempSum = tempSum + lastValues[i]; // running total
+  }
+  int avgValue = tempSum / sizeLookBack;
+
+  // calculate the standard deviation
+  int stanDev[5] = {0, 0, 0, 0, 0};
+  boolean steadyStan = true;
+  for ( int i = 0; i < sizeLookBack; i++ ) {
+    stanDev[i] = avgValue - lastValues[i];
+    stanDev[i] = stanDev[i] * stanDev[i];
+    if ( stanDev[i] > 1 ) { // adjust this number to change sensitivity
+      steadyStan = false;
+    }
+
+    Serial.print("stan dev: ");
+    Serial.println(stanDev[i]);
+  }
+  Serial.println("-----");
+
+  // if above the seat threshold
+  // and if standard deviation is 0
+  if ( tempSeatTriggered && steadyStan) {
+    // set seat sound to trigger
+    seatTriggered = true;
+    // store the current value as the seat value
+    seatValue = avgValue;
+    Serial.print("seat value: ");
+    Serial.println(seatValue);
+    Serial.println("================");
+  } else {
+    seatTriggered = false;
+  }
+
+
+  if (seatTriggered) {
+    if (MP3player.isPlaying()) {
+      Serial1.print("STATUS: SEATED ");
+      Serial1.println(seatValue);
       // if we're already playing the requested track, do nothing
 
     } else {
@@ -143,4 +199,14 @@ void readRawInputs() {
     MP3player.stopTrack();
   }
 
+
+}
+
+void updateLastValues(int latest) {
+  // shift current values in array to next address
+  for ( int i = 1; i < sizeLookBack; i++) {
+    lastValues[i] =  lastValues[i - 1];
+  }
+  // make latest value first item in array
+  lastValues[0] = latest;
 }
