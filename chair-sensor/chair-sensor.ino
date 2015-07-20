@@ -46,7 +46,7 @@ int lastValues[30];
 boolean seatTriggered = false;
 boolean touchTriggered = false;
 int seatValue = 0;
-
+long seatTime = 0;
 
 // sd card instantiation
 SdFat sd;
@@ -185,11 +185,18 @@ void readRawInputs() {
   if ( tempSeatTriggered && steadyStan && !seatTriggered) {
     // set seat sound to trigger
     seatTriggered = true;
-    // store the current value as the seat value
-    seatValue = avgValue;
+    // start debounce timer to let seatValue settle
+    seatTime = millis();
+    
   } if ( !tempSeatTriggered) {
     seatTriggered = false;
   }
+  // enough time has passed, set seatValue
+  if(seatTriggered && millis()-seatTime > 500 && millis()-seatTime < 600) {
+  // store the current value as the seat value
+    seatValue = avgValue;
+  }
+  
   Serial.print("avg value: ");
   Serial.println(avgValue);
   Serial.print("seat value: ");
