@@ -1,4 +1,4 @@
-;/*******************************************************************************
+/*******************************************************************************
 
  Chair Sensor
  ------------------------------
@@ -118,19 +118,19 @@ void readRawInputs() {
 
   MPR121.updateAll();
 
-  Serial1.print("FDAT: ");
+  Serial.print("FDAT: ");
   //for(i=0; i<13; i++){          // 13 filtered values
-  Serial1.print(MPR121.getFilteredData(i), DEC);
+  Serial.print(MPR121.getFilteredData(i), DEC);
   //if(i<12) Serial1.print(" ");
   //}
-  Serial1.println();
+  Serial.println();
 
-  Serial1.print("BVAL: ");
+  Serial.print("BVAL: ");
   //for(i=0; i<13; i++){          // 13 baseline values
-  Serial1.print(MPR121.getBaselineData(i), DEC);
+  Serial.print(MPR121.getBaselineData(i), DEC);
   //if(i<12) Serial1.print(" ");
   //}
-  Serial1.println();
+  Serial.println();
 
   // the trigger and threshold values refer to the difference between
   // the filtered data and the running baseline - see p13 of
