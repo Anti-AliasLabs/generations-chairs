@@ -37,16 +37,21 @@ SFEMP3Shield MP3player;
 byte result;
 boolean seatPlaying = false;
 boolean touchPlaying = false;
+boolean buttPlaying = false;
+
+
 
 // sitting and touch variables
-int seatThreshold = 50;
-int touchThreshold = 8;                                                           ;
+int seatThreshold = 100;
+int touchThreshold = 8;
+int buttThreshold = 8;
 int sizeLookBack = 30;
 int lastValues[30];
 
 boolean seatTriggered = false;
 boolean touchTriggered = false;
-int seatValue = 10;
+boolean buttTriggered = false;
+int seatValue = 300;
 long seatTime = 0;
 
 // sd card instantiation
@@ -106,6 +111,10 @@ void setup() {
   for (int i = 0; i < sizeLookBack; i++ ) {
     lastValues[i] = 0;
   }
+  //set thresholds for butt sensor
+  MPR121.setTouchThreshold(4, 8);
+  MPR121.setReleaseThreshold(4, 3);
+  
 }
 
 void loop() {
@@ -113,38 +122,36 @@ void loop() {
 }
 
 void readRawInputs() {
-  // only using electrode 3 on the Touch Board
-  int i = 3;
-
+  // We want to use electrode 3 to sense for touches
+  int sensorTouch = 3;
+  
+  // We want to use electrode 4 to sense for butts
+  int sensorButt = 4;
+  
+  // Update the touch data
   MPR121.updateAll();
 
-  Serial.print("FDAT: ");
-  //for(i=0; i<13; i++){          // 13 filtered values
-  Serial.print(MPR121.getFilteredData(i), DEC);
-  //if(i<12) Serial1.print(" ");
-  //}
-  Serial.println();
-
-  Serial.print("BVAL: ");
-  //for(i=0; i<13; i++){          // 13 baseline values
-  Serial.print(MPR121.getBaselineData(i), DEC);
-  //if(i<12) Serial1.print(" ");
-  //}
-  Serial.println();
-
-  // the trigger and threshold values refer to the difference between
-  // the filtered data and the running baseline - see p13 of
-  // http://www.freescale.com/files/sensors/doc/data_sheet/MPR121.pdf
-
-  /*Serial1.print("DIFF: ");
-  for(i=0; i<13; i++){          // 13 value pairs
-    Serial1.print(MPR121.getBaselineData(i)-MPR121.getFilteredData(i), DEC);
-    if(i<12) Serial1.print(" ");
+  // log some data
+//  Serial.print("FDAT: ");
+//  Serial.print(MPR121.getFilteredData(sensorTouch), DEC);
+//  Serial.println();
+//
+//  Serial.print("BVAL: ");
+//  Serial.print(MPR121.getBaselineData(sensorTouch), DEC);
+//  Serial.println();
+  
+  if( MPR121.isNewTouch(sensorButt) ) {
+    buttTriggered = true;
+    Serial.println("Butt triggered");
   }
-  Serial1.println();*/
-
+  if( MPR121.isNewRelease(sensorButt) ) {
+    buttTriggered = false;
+    Serial.println("Butt released");
+  };
+  
+  // Determine whether there is a touch on the contact and if that person is touching another person
   // update array of past values with current reading
-  updateLastValues(MPR121.getBaselineData(i) - MPR121.getFilteredData(i));
+  updateLastValues(MPR121.getBaselineData(sensorTouch) - MPR121.getFilteredData(sensorTouch));
 
   // go through current array of values
   boolean tempSeatTriggered = true;
@@ -205,48 +212,70 @@ void readRawInputs() {
     touchTriggered = false;
   }
 
+//  Serial.print("avg value: ");
+//  Serial.println(avgValue);
+//  Serial.print("seat value: ");
+//  Serial.println(seatValue);
+//  Serial.print("SEAT: ");
+//  Serial.println(seatTriggered);
+//  Serial.print("TOUCH: ");
+//  Serial.println(touchTriggered);
+//  Serial.println("================");
 
-  Serial.print("avg value: ");
-  Serial.println(avgValue);
-  Serial.print("seat value: ");
-  Serial.println(seatValue);
-  Serial.print("SEAT: ");
-  Serial.println(seatTriggered);
-  Serial.print("TOUCH: ");
-  Serial.println(touchTriggered);
-  Serial.println("================");
-
+// check butt sensor
+  if( MPR121.isNewTouch(sensorButt) ) {
+    buttTriggered = true;
+  }
+  if( MPR121.isNewRelease(sensorButt) ) {
+    buttTriggered = false;
+  };
+  
+  // Determine Which track is to be played
   // if seat has been triggered but track not playing yet, play it
-  if (seatTriggered && !touchTriggered ) {
-    if ( !seatPlaying ) {
-      // if playing audio, stop it
-      if (MP3player.isPlaying()) {
-        MP3player.stopTrack();
+  if(buttTriggered) {
+    if(seatTriggered) {
+      if(touchTriggered) {
+        // seat and touch are triggered
+        if(!touchPlaying) {
+          if(MP3player.isPlaying()) {
+            MP3player.stopTrack();
+          }
+          MP3player.playTrack(2);
+          buttPlaying = false;
+          seatPlaying = false;
+          touchPlaying = true;
+        } else {
+          MP3player.playTrack(2);
+        }
+      } else {
+        // just seat is triggered
+        if(!seatPlaying) {
+          if(MP3player.isPlaying()) {
+            MP3player.stopTrack();
+          }
+          MP3player.playTrack(1);
+          buttPlaying = false;
+          seatPlaying = true;
+          touchPlaying = false;
+        } else {
+          MP3player.playTrack(1);
+        }
       }
-      // play the touch track
-      MP3player.playTrack(0);
-      seatPlaying = true;
-      touchPlaying = false;
-    } else{
-      MP3player.playTrack(0);
-    }
-  }
-  if (touchTriggered) {
-    if ( !touchPlaying ) {
-      // if playing seat audio, stop it
-      if (MP3player.isPlaying()) {
-        MP3player.stopTrack();
-      }
-      // play the touch track
-      MP3player.playTrack(1);
-      seatPlaying = false;
-      touchPlaying = true;
     } else {
-      MP3player.playTrack(1);
+      // just the butt is triggered
+        if(!buttPlaying) {
+          if(MP3player.isPlaying()) {
+          MP3player.stopTrack();
+        }
+        MP3player.playTrack(0);
+        buttPlaying = true;
+        seatPlaying = false;
+        touchPlaying = false;
+      } else {
+        MP3player.playTrack(0);
+      }
     }
-  }
-  if ( !seatTriggered && !touchTriggered) {
-    // if not within threshold, stop any playing
+  } else {
     MP3player.stopTrack();
   }
 }
