@@ -1,4 +1,4 @@
-/*******************************************************************************
+;/*******************************************************************************
 
  Chair Sensor
  ------------------------------
@@ -35,17 +35,18 @@
 // mp3 variables
 SFEMP3Shield MP3player;
 byte result;
-int lastPlayed = 0;
+boolean seatPlaying = false;
+boolean touchPlaying = false;
 
 // sitting and touch variables
-int seatThreshold = 30;
-int touchThreshold = 5;
+int seatThreshold = 50;
+int touchThreshold = 8;                                                           ;
 int sizeLookBack = 30;
 int lastValues[30];
 
 boolean seatTriggered = false;
 boolean touchTriggered = false;
-int seatValue = 0;
+int seatValue = 10;
 long seatTime = 0;
 
 // sd card instantiation
@@ -147,7 +148,6 @@ void readRawInputs() {
 
   // go through current array of values
   boolean tempSeatTriggered = true;
-  boolean tempTouchTriggered = true;
   int tempSum = 0;
 
   for (int i = 0; i < sizeLookBack; i++) {
@@ -187,47 +187,68 @@ void readRawInputs() {
     seatTriggered = true;
     // start debounce timer to let seatValue settle
     seatTime = millis();
-    
+
   } if ( !tempSeatTriggered) {
     seatTriggered = false;
   }
   // enough time has passed, set seatValue
-  if(seatTriggered && millis()-seatTime > 500 && millis()-seatTime < 600) {
-  // store the current value as the seat value
+  if (seatTriggered && (millis() - seatTime > 600) && (millis() - seatTime < 650)) {
+    // store the current value as the seat value
     seatValue = avgValue;
   }
-  
-  Serial.print("avg value: ");
-  Serial.println(avgValue);
-  Serial.print("seat value: ");
-  Serial.println(seatValue);
-
 
   // if seat sound is triggered and now also above touch threshold
   // and now no longer a steady state, trigger touch sound
   if ( seatTriggered && avgValue > (seatValue + touchThreshold) ) {
-    Serial.println("TOUCHING TOUCHING TOUCHING");
+    touchTriggered = true;
+  } else {
+    touchTriggered = false;
   }
 
-  Serial.println("================");
-  
-  if (seatTriggered) {
-    if (MP3player.isPlaying()) {
-      Serial1.print("STATUS: SEATED ");
-      Serial1.println(seatValue);
-      // if we're already playing the requested track, do nothing
 
-    } else {
-      // if we're playing nothing, play the requested track
-      // and update lastplayed
+  Serial.print("avg value: ");
+  Serial.println(avgValue);
+  Serial.print("seat value: ");
+  Serial.println(seatValue);
+  Serial.print("SEAT: ");
+  Serial.println(seatTriggered);
+  Serial.print("TOUCH: ");
+  Serial.println(touchTriggered);
+  Serial.println("================");
+
+  // if seat has been triggered but track not playing yet, play it
+  if (seatTriggered && !touchTriggered ) {
+    if ( !seatPlaying ) {
+      // if playing audio, stop it
+      if (MP3player.isPlaying()) {
+        MP3player.stopTrack();
+      }
+      // play the touch track
+      MP3player.playTrack(0);
+      seatPlaying = true;
+      touchPlaying = false;
+    } else{
       MP3player.playTrack(0);
     }
-  } else {
+  }
+  if (touchTriggered) {
+    if ( !touchPlaying ) {
+      // if playing seat audio, stop it
+      if (MP3player.isPlaying()) {
+        MP3player.stopTrack();
+      }
+      // play the touch track
+      MP3player.playTrack(1);
+      seatPlaying = false;
+      touchPlaying = true;
+    } else {
+      MP3player.playTrack(1);
+    }
+  }
+  if ( !seatTriggered && !touchTriggered) {
     // if not within threshold, stop any playing
     MP3player.stopTrack();
   }
-
-
 }
 
 void updateLastValues(int latest) {
