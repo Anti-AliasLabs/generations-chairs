@@ -22,6 +22,8 @@
 // Serial1 rate
 // for sending debugging via XBee
 #define baudRate 57600
+#define millisInTenMinutes 1000
+#define numSounds 14
 
 #include <MPR121.h>
 #include <Wire.h>
@@ -37,9 +39,11 @@ SFEMP3Shield MP3player;
 byte result;
 boolean seatPlaying = false;
 boolean touchPlaying = false;
-boolean buttPlaying = false;
+unsigned long timeSinceLastStop;
 
-
+int sensorButt = 11;
+int sensorTouch = 0;
+int soundIndex = 1;
 
 // sitting and touch variables
 int seatThreshold = 100;
@@ -112,9 +116,9 @@ void setup() {
     lastValues[i] = 0;
   }
   //set thresholds for butt sensor
-  MPR121.setTouchThreshold(4, 8);
-  MPR121.setReleaseThreshold(4, 3);
-  
+  MPR121.setTouchThreshold(sensorButt, 40);
+  MPR121.setReleaseThreshold(sensorButt, 20);
+  timeSinceLastStop = millis();
 }
 
 void loop() {
@@ -122,11 +126,6 @@ void loop() {
 }
 
 void readRawInputs() {
-  // We want to use electrode 3 to sense for touches
-  int sensorTouch = 3;
-  
-  // We want to use electrode 4 to sense for butts
-  int sensorButt = 4;
   
   // Update the touch data
   MPR121.updateAll();
@@ -141,8 +140,8 @@ void readRawInputs() {
 //  Serial.println();
   
   if( MPR121.isNewTouch(sensorButt) ) {
-    buttTriggered = true;
-    Serial.println("Butt triggered");
+    soundIndex+=2;
+    if(soundIndex > numSounds) soundIndex = 1;
   }
   if( MPR121.isNewRelease(sensorButt) ) {
     buttTriggered = false;
@@ -224,59 +223,66 @@ void readRawInputs() {
 
 // check butt sensor
   if( MPR121.isNewTouch(sensorButt) ) {
+    soundIndex += 2;
+    if(soundIndex > 13) soundIndex = 1;
     buttTriggered = true;
   }
   if( MPR121.isNewRelease(sensorButt) ) {
     buttTriggered = false;
   };
   
-  // Determine Which track is to be played
-  // if seat has been triggered but track not playing yet, play it
+  //only activate noises if butt sensor is touched
   if(buttTriggered) {
-    if(seatTriggered) {
-      if(touchTriggered) {
-        // seat and touch are triggered
-        if(!touchPlaying) {
-          if(MP3player.isPlaying()) {
-            MP3player.stopTrack();
-          }
-          MP3player.playTrack(2);
-          buttPlaying = false;
-          seatPlaying = false;
-          touchPlaying = true;
-        } else {
-          MP3player.playTrack(2);
-        }
-      } else {
-        // just seat is triggered
-        if(!seatPlaying) {
-          if(MP3player.isPlaying()) {
-            MP3player.stopTrack();
-          }
-          MP3player.playTrack(1);
-          buttPlaying = false;
-          seatPlaying = true;
-          touchPlaying = false;
-        } else {
-          MP3player.playTrack(1);
-        }
-      }
-    } else {
-      // just the butt is triggered
-        if(!buttPlaying) {
-          if(MP3player.isPlaying()) {
+    // if seat has been triggered but track not playing yet, play it
+    if (seatTriggered && !touchTriggered ) {
+      if ( !seatPlaying ) {
+        // if playing audio, stop it
+        if (MP3player.isPlaying()) {
           MP3player.stopTrack();
         }
-        MP3player.playTrack(0);
-        buttPlaying = true;
-        seatPlaying = false;
+        // play the touch track
+        MP3player.playTrack(soundIndex);
+        timeSinceLastStop = millis();
+        seatPlaying = true;
         touchPlaying = false;
-      } else {
-        MP3player.playTrack(0);
+      } else{
+        MP3player.playTrack(soundIndex);
       }
     }
-  } else {
+    if (touchTriggered) {
+      if ( !touchPlaying ) {
+        // if playing seat audio, stop it
+        if (MP3player.isPlaying()) {
+          MP3player.stopTrack();
+        }
+        // play the touch track
+        MP3player.playTrack(soundIndex + 1);
+        timeSinceLastStop = millis();
+        seatPlaying = false;
+        touchPlaying = true;
+      } else {
+        MP3player.playTrack(soundIndex + 1);
+      }
+    }
+  } else if (seatPlaying || touchPlaying){
+    //Stop track if butt sensor is not active
     MP3player.stopTrack();
+    seatPlaying = false;
+    touchPlaying = false;
+  }
+  if ( !seatTriggered && !touchTriggered && (seatPlaying || touchPlaying)) {
+    // if not within threshold, stop any playing
+    MP3player.stopTrack();
+    seatPlaying = false;
+    touchPlaying = false;
+  }
+  
+  if(millis() - timeSinceLastStop > millisInTenMinutes) {
+    MP3player.playTrack(0);
+    digitalWrite(LED_BUILTIN, HIGH);
+    timeSinceLastStop = millis();
+    Serial.print("keep alive played");
+    Serial.println();
   }
 }
 
