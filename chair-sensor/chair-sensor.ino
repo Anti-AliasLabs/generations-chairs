@@ -22,8 +22,10 @@
 // Serial1 rate
 // for sending debugging via XBee
 #define baudRate 57600
-#define millisInTenMinutes 1000
-#define numSounds 14
+#define millisInTenMinutes 300000
+
+//#define millisin20Seconds
+#define numSounds 15
 
 #include <MPR121.h>
 #include <Wire.h>
@@ -62,33 +64,32 @@ long seatTime = 0;
 SdFat sd;
 
 void setup() {
-  Serial1.begin(baudRate);
   Serial.begin(baudRate);
 
   // 0x5C is the MPR121 I2C address on the Bare Touch Board
   if (!MPR121.begin(0x5C)) {
-    Serial1.println("error setting up MPR121");
+    Serial.println("error setting up MPR121");
     switch (MPR121.getError()) {
       case NO_ERROR:
-        Serial1.println("no error");
+        Serial.println("no error");
         break;
       case ADDRESS_UNKNOWN:
-        Serial1.println("incorrect address");
+        Serial.println("incorrect address");
         break;
       case READBACK_FAIL:
-        Serial1.println("readback failure");
+        Serial.println("readback failure");
         break;
       case OVERCURRENT_FLAG:
-        Serial1.println("overcurrent on REXT pin");
+        Serial.println("overcurrent on REXT pin");
         break;
       case OUT_OF_RANGE:
-        Serial1.println("electrode out of range");
+        Serial.println("electrode out of range");
         break;
       case NOT_INITED:
-        Serial1.println("not initialised");
+        Serial.println("not initialised");
         break;
       default:
-        Serial1.println("unknown error");
+        Serial.println("unknown error");
         break;
     }
     while (1);
@@ -106,9 +107,9 @@ void setup() {
   MP3player.setVolume(10, 10);
 
   if (result != 0) {
-    Serial1.print("Error code: ");
-    Serial1.print(result);
-    Serial1.println(" when trying to start MP3 player");
+    Serial.print("Error code: ");
+    Serial.print(result);
+    Serial.println(" when trying to start MP3 player");
   }
 
   // initialise array
@@ -116,8 +117,8 @@ void setup() {
     lastValues[i] = 0;
   }
   //set thresholds for butt sensor
-  MPR121.setTouchThreshold(sensorButt, 40);
-  MPR121.setReleaseThreshold(sensorButt, 20);
+  MPR121.setTouchThreshold(sensorButt, 20);
+  MPR121.setReleaseThreshold(sensorButt, 10);
   timeSinceLastStop = millis();
 }
 
@@ -142,10 +143,11 @@ void readRawInputs() {
   if( MPR121.isNewTouch(sensorButt) ) {
     soundIndex+=2;
     if(soundIndex > numSounds) soundIndex = 1;
+    Serial.print(soundIndex);
+    Serial.println();
   }
   if( MPR121.isNewRelease(sensorButt) ) {
     buttTriggered = false;
-    Serial.println("Butt released");
   };
   
   // Determine whether there is a touch on the contact and if that person is touching another person
@@ -211,24 +213,16 @@ void readRawInputs() {
     touchTriggered = false;
   }
 
-//  Serial.print("avg value: ");
-//  Serial.println(avgValue);
-//  Serial.print("seat value: ");
-//  Serial.println(seatValue);
-//  Serial.print("SEAT: ");
-//  Serial.println(seatTriggered);
-//  Serial.print("TOUCH: ");
-//  Serial.println(touchTriggered);
-//  Serial.println("================");
-
 // check butt sensor
   if( MPR121.isNewTouch(sensorButt) ) {
     soundIndex += 2;
     if(soundIndex > 13) soundIndex = 1;
     buttTriggered = true;
+    digitalWrite(LED_BUILTIN, HIGH);
   }
   if( MPR121.isNewRelease(sensorButt) ) {
     buttTriggered = false;
+    digitalWrite(LED_BUILTIN, LOW);
   };
   
   //only activate noises if butt sensor is touched
@@ -239,6 +233,7 @@ void readRawInputs() {
         // if playing audio, stop it
         if (MP3player.isPlaying()) {
           MP3player.stopTrack();
+          Serial.println("stopped 0");
         }
         // play the touch track
         MP3player.playTrack(soundIndex);
@@ -254,6 +249,7 @@ void readRawInputs() {
         // if playing seat audio, stop it
         if (MP3player.isPlaying()) {
           MP3player.stopTrack();
+          Serial.println("stopped 1");
         }
         // play the touch track
         MP3player.playTrack(soundIndex + 1);
@@ -267,23 +263,28 @@ void readRawInputs() {
   } else if (seatPlaying || touchPlaying){
     //Stop track if butt sensor is not active
     MP3player.stopTrack();
+    Serial.println("stopped 2");
     seatPlaying = false;
     touchPlaying = false;
   }
   if ( !seatTriggered && !touchTriggered && (seatPlaying || touchPlaying)) {
     // if not within threshold, stop any playing
     MP3player.stopTrack();
+    Serial.println("stopped 3");
     seatPlaying = false;
     touchPlaying = false;
   }
   
   if(millis() - timeSinceLastStop > millisInTenMinutes) {
     MP3player.playTrack(0);
-    digitalWrite(LED_BUILTIN, HIGH);
-    timeSinceLastStop = millis();
+    //timeSinceLastStop = millis();
     Serial.print("keep alive played");
     Serial.println();
   }
+  Serial.print("buttOn: ");
+  Serial.print(buttTriggered);
+  Serial.println();
+  
 }
 
 void updateLastValues(int latest) {
