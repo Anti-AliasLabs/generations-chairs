@@ -29,7 +29,7 @@
 import processing.serial.*; 
 import controlP5.*;
 
-final int baudRate = 57600;
+final int baudRate = 9600;
  
 final int numElectrodes = 1; // includes proximity electrode 
 final int numGraphPoints = 300;
